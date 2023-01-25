@@ -1,12 +1,22 @@
+import phonenumbers
 from aiogram import types
-from orm_utils import start_user, change_pii
-import keyboards
-from aiogram.types import Message, ReplyKeyboardRemove, KeyboardButton, ReplyKeyboardMarkup
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
-import phonenumbers
-from misc import dp
+from aiogram.types import (KeyboardButton, Message, ReplyKeyboardMarkup,
+                           ReplyKeyboardRemove)
+
+import keyboards
 import states
+from misc import dp
+from orm_utils import change_pii, start_user
+
+
+async def cmd_start_alt(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()  # resets state
+    if current_state is not None:
+        await state.finish()
+
+    await message.answer("Welcome!", reply_markup=keyboards.main_menu)
 
 
 @dp.message_handler(state='*', commands=['start'])
@@ -23,6 +33,24 @@ async def cmd_start(message: types.Message, state: FSMContext):
             await state.finish()
 
         await message.answer("Welcome!", reply_markup=keyboards.main_menu)
+
+
+@dp.message_handler(commands='cancel', state='*')
+@dp.message_handler(Text(equals='Cancel', ignore_case=True), state='*')
+async def cancel_handler(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+
+    await state.finish()
+    await message.reply('Canceled.', reply_markup=types.ReplyKeyboardRemove())
+
+
+@dp.message_handler(commands='state', state='*')
+@dp.message_handler(Text(equals='Cancel', ignore_case=True), state='*')
+async def cancel_handler(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    await message.reply(f'{current_state}')
 
 
 @dp.message_handler(state=states.NewUser.name)
@@ -75,7 +103,9 @@ async def process_phone(message: Message, state: FSMContext):
         "👍 Profile info saved.",
         reply_markup=ReplyKeyboardRemove())
     await state.finish()
-
+    # admin = is_admin(message.from_user.id)
+    # if admin:
+    # keyboard.add('admin_button')
     await message.answer("Welcome!", reply_markup=keyboards.main_menu)
 
 
@@ -84,14 +114,3 @@ async def process_term(query: types.CallbackQuery):
     await query.answer()
     await query.message.answer("Please enter your name:", reply_markup=ReplyKeyboardRemove())
     await states.NewUser.name.set()
-
-
-@dp.message_handler(commands='cancel', state='*')
-@dp.message_handler(Text(equals='Cancel', ignore_case=True), state='*')
-async def cancel_handler(message: types.Message, state: FSMContext):
-    current_state = await state.get_state()
-    if current_state is None:
-        return
-
-    await state.finish()
-    await message.reply('Canceled.', reply_markup=types.ReplyKeyboardRemove())

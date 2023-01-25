@@ -1,17 +1,19 @@
-from os import environ
 import datetime
-from peewee import Model, CharField, DateTimeField, IntegerField, ForeignKeyField, BooleanField,\
-    SmallIntegerField, PostgresqlDatabase, AutoField,  BigIntegerField, DateTimeField
-from playhouse.db_url import connect
+#from os import environ
 
-REQUIRED_ENV = ['POSTGRES_DB', 'POSTGRES_USER',
-                'POSTGRES_PASSWORD', 'DB_ADDRESS', 'DB_PORT']
-for var in REQUIRED_ENV:
-    if var not in environ:
-        raise EnvironmentError(f"{var} is not set.")
+from peewee import (AutoField, BigIntegerField, BooleanField, CharField,
+                    DateTimeField, FloatField, ForeignKeyField, IntegerField,
+                    Model, PostgresqlDatabase, TextField)
+from playhouse.postgres_ext import BinaryJSONField
 
-db = PostgresqlDatabase(environ.get('POSTGRES_DB'), user=environ.get('POSTGRES_USER'), password=environ.get('POSTGRES_PASSWORD'),
-                        host=environ.get('DB_ADDRESS'), port=environ.get('DB_PORT'), autorollback=True)
+# REQUIRED_ENV = ['POSTGRES_DB', 'POSTGRES_USER',
+#                 'POSTGRES_PASSWORD', 'DB_ADDRESS', 'DB_PORT']
+# for var in REQUIRED_ENV:
+#     if var not in environ:
+#         raise EnvironmentError(f"{var} is not set.")
+
+db = PostgresqlDatabase('villabot', user='villauser', password='villapass',
+                        host='db', port=5432, autorollback=True)
 
 
 class BaseModel(Model):
@@ -21,37 +23,36 @@ class BaseModel(Model):
 
 class Client(BaseModel):
     tgid = BigIntegerField(unique=True)
-    # fbid =
     name = CharField(null=True)
     phone = CharField(null=True)
     is_admin = BooleanField(default=False)
     is_rentee = BooleanField(default=False)
     is_renter = BooleanField(default=False)
-    # TODO: FOLLOW UP: Recheck each hour and send differences.
-    last_search_params = None
-    last_search_followup_date = DateTimeField(null=True)
+
     notifications = BooleanField(default=True)
 
 
 class Location(BaseModel):
     name = CharField()
+    parent = ForeignKeyField('self', backref='subcategory', null=True)
 
 
 class Apartment(BaseModel):
-    # TODO: Create user for each unique group from parser
-    user = ForeignKeyField(Client, backref='apartments')
-    bedrooms = IntegerField()
+    user = ForeignKeyField(Client, backref='apartments', null=True)
+    author = CharField(null=True)
+    author_id = BigIntegerField(null=True)
+    bedrooms = IntegerField(null=True)
+    description = TextField(null=True)
     location = ForeignKeyField(Location, backref='apartments')
-    # defined if from Facebook, overriding user.phone
     phone = CharField(max_length=15, null=True)
-    # defined if from Facebook, overriding user.name
-    name = CharField(null=True)
+    listing_id = BigIntegerField(null=True)
     listdate = DateTimeField(default=datetime.datetime.now)
     delistdate = DateTimeField(null=True)
     checkindate = DateTimeField(null=True)
-    # probably should keep this on script side, not on database
-    source = SmallIntegerField(default=0)
-    shortcode = CharField(null=True)
+    shortcode = CharField(null=True)  # TODO: unique
+    external = BooleanField(default=False)
+    lat = FloatField(null=True)
+    lon = FloatField(null=True)
     delisted = BooleanField(default=False)
     deleted = BooleanField(default=False)
 
@@ -60,25 +61,24 @@ class ApartmentMedia(BaseModel):
     apartment = ForeignKeyField(
         Apartment, backref='media', on_delete='CASCADE')
     file_id = CharField()
-    # file_type = CharField() # there would be videos in media
+    # file_type = CharField() # there would be video in media
 
 
-class Term(BaseModel):
-    termid = AutoField()
-    name = CharField()
-
-
-class PricesTerm(BaseModel):
+class ApartmentPrice(BaseModel):
     apartment = ForeignKeyField(
-        Apartment, backref='prices', on_delete='CASCADE')
-    term = ForeignKeyField(Term, backref='terms')
-    price = IntegerField()
+        Apartment, backref='prices', on_delete='CASCADE', unique=True)
+    # TODO: probably needs BigIntegerField instead
+    day = IntegerField(null=True)
+    month = IntegerField(null=True)
+    year = IntegerField(null=True)
 
 
-class ClientSearches(BaseModel):
-    user = ForeignKeyField(Client, backref='searches')
-    last_search_params = None
-    last_search_followup_date = DateTimeField(null=True)
+class ApartmentTerm(BaseModel):
+    apartment = ForeignKeyField(
+        Apartment, backref='terms', on_delete='CASCADE', unique=True)
+    day = BooleanField(default=False)
+    month = BooleanField(default=False)
+    year = BooleanField(default=False)
 
 
 class ClientFavorite(BaseModel):
@@ -105,16 +105,27 @@ class Appointment(BaseModel):
     canceled = BooleanField(null=True)
 
 
-class UserActions(BaseModel):
+class Action(BaseModel):
+    name = CharField()
+
+
+class UserAction(BaseModel):
     client = ForeignKeyField(Client, backref='actions')
-    action = CharField()
+    action = ForeignKeyField(Action, backref='actions')
+    payload = BinaryJSONField(null=True)
     time = DateTimeField(default=datetime.datetime.now)
+
+# class Broadcast(BaseModel):
+#     client = ForeignKeyField(Client, backref='actions')
+#     action = ForeignKeyField(Action, backref='actions')
+#     payload = BinaryJSONField(null=True)
+#     time = DateTimeField(default=datetime.datetime.now)
 
 
 class Feedback(BaseModel):
     user = ForeignKeyField(Client, backref='feedback')
-    message = CharField()
+    message = TextField()
 
 
 db.create_tables([Client, Apartment, Appointment, ApartmentMedia, ApartmentFacility,
-                 ClientFavorite, ClientSearches, Facility, PricesTerm, Term, Location])
+                 ClientFavorite, Facility, ApartmentPrice, Location, Action, UserAction, Feedback])

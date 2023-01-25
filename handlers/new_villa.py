@@ -1,15 +1,19 @@
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, MediaGroup
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
+from aiogram.types import (CallbackQuery, InlineKeyboardButton,
+                           InlineKeyboardMarkup, MediaGroup, Message)
 from aiogram.utils.exceptions import BadRequest
-from aiogram_calendar import simple_cal_callback, SimpleCalendar, dialog_cal_callback, DialogCalendar
-from orm_utils import new_apartment, set_apartment_media
-import states
+from aiogram_calendar import (SimpleCalendar, simple_cal_callback)
+
 import keyboards
-from misc import dp, bot
-from .general_commands import cmd_start
-#import dateparser
-#import phonenumbers
+import states
+from misc import bot, dp
+from orm_utils import new_apartment, set_apartment_media
+
+from .general_commands import cmd_start_alt
+
+# import dateparser
+# import phonenumbers
 
 
 DEFAULT_DATA = {'term': {
@@ -99,7 +103,7 @@ def _keyboard(state, statedata, toggledbutton=None):
 
             markup.add(
                 InlineKeyboardButton(
-                    f'{prefix}{button}',
+                    f'{prefix} {button.capitalize()}',
                     callback_data=keyboards.choicer_cb.new(state=state, button=button)),
             )
         markup.row()
@@ -112,8 +116,6 @@ def _keyboard(state, statedata, toggledbutton=None):
                             f'{term} price: {statedata["price"][term] if statedata["price"][term] is not None else "not set"}', callback_data=keyboards.price_cb.new(term=term, action='change'))
                         markup.insert(changebutton)
                         markup.row()
-        print(list(statedata.keys())[0])
-        print(state)
         if list(statedata.keys())[0] != state:
             prevbutton = InlineKeyboardButton(
                 '⬅️ Back', callback_data=keyboards.pager_cb.new(state=state, button='prev'))
@@ -211,7 +213,6 @@ async def process_toggle_callback(query: CallbackQuery, state: FSMContext):
     await query.answer()
 
     test = await state.get_state()
-    print(test, flush=True)
     test = test.split(':')
     test2 = query.data.split(':')
     async with state.proxy() as statedata:
@@ -274,7 +275,6 @@ Prices:\n"""
                 for media in statedata["media"]:
                     media = MediaGroup()
                     media_list = statedata["media"]
-                    print(media_list)
 
                     for i, photo in enumerate(media_list):
                         if i == 0:
@@ -306,16 +306,19 @@ async def process_finish(query: CallbackQuery, state: FSMContext):
         prevbutton = InlineKeyboardButton(
             '⬅️ Main menu', callback_data='mainmenu')
         markup.insert(prevbutton)
+        apart = new_apartment(tgid=query.from_user.id,
+                              bedrooms=int(bedrooms),
+                              location=location,
+                              facilitylist=[
+                                  key for key, value in statedata['facilities'].items() if value and key != "_multiple"],
+                              pricelist=statedata['price'])
         await query.message.reply("Done!", reply_markup=markup)
         await query.message.delete()
-        apart = new_apartment(query.from_user.id, int(bedrooms), location, [
-                              key for key, value in statedata['facilities'].items() if value and key != "_multiple"],
-                              statedata['price'])
 
         for photo in statedata["media"]:
             set_apartment_media(apart, photo)
     await state.finish()
-    await cmd_start(message=query.message, state=state)
+    await cmd_start_alt(message=query.message, state=state)
 
 
 @dp.message_handler(content_types='photo', state=states.NewVilla.media)
@@ -404,15 +407,10 @@ async def process_handle_price_message(message: Message, state: FSMContext):
 @dp.callback_query_handler(simple_cal_callback.filter(), state=states.NewVilla.checkindate)
 async def process_simple_calendar(query: CallbackQuery, callback_data: dict, state: FSMContext):
     async with state.proxy() as statedata:
-        print(query)
-        print(callback_data)
-        print(state)
         if callback_data:  # and callback_data
-            print('callback data')
             selected, date = await SimpleCalendar().process_selection(query, callback_data)
             statedata['checkindate'] = date
         else:
-            print('no callback data')
             selected, date = (False, statedata['checkindate'])
         markup = InlineKeyboardMarkup()\
             .add(InlineKeyboardButton(
@@ -440,9 +438,9 @@ async def process_checkindate(query: CallbackQuery, state: FSMContext):
                 prevbutton = InlineKeyboardButton(
                     '⬅️ Back', callback_data=keyboards.pager_cb.new(state='checkindate', button='prev'))
                 markup.insert(prevbutton)
-                # nextbutton = InlineKeyboardButton(
-                #    '➡️ Next', callback_data=keyboards.pager_cb.new(state='checkindate', button='next'))
-                # markup.insert(nextbutton)
+                nextbutton = InlineKeyboardButton(
+                    '➡️ Next', callback_data=keyboards.pager_cb.new(state='checkindate', button='next'))
+                markup.insert(nextbutton)
 
                 await states.NewVilla.checkindate.set()
                 try:
@@ -467,7 +465,6 @@ async def process_checkindate_reset(query: CallbackQuery, state: FSMContext):
         else:
             await query.answer(
                 text='Please add at least one photo.', show_alert=True)
-# simple calendar usage
 
 
 # let manage added photos

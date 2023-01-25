@@ -10,7 +10,9 @@ class Menu(StatesGroup):
     main = State()
     change_personal_info = State()
     # appointments = State() # TODO: target
-    listed_villas = State()  # TODO: WIP
+    listed_villas = State()  # TODO: target
+    admin_menu = State()
+    admin_edit = State()
 
 
 class NewVilla(StatesGroup):
@@ -35,5 +37,35 @@ class Pricing(StatesGroup):
 
 class ChangeVilla(StatesGroup):
     villalist = State()
-    villa = State()
+    villaview = State()
+    villaview_admin = State()
+
+
+class ChangeVillaView(StatesGroup):
     change = State()
+    changeprices = State()
+    changeprices_setting = State()
+    changeterm = State()
+    changelocation = State()
+    changebedrooms = State()
+    changefacilities = State()
+    changephotos = State()
+    changephotos_upload = State()
+    confirmremove = State()
+
+
+class ChangeVillaPricing(StatesGroup):
+    DAY = State()
+    MONTH = State()
+    YEAR = State()
+
+
+class BroadcastState(StatesGroup):
+    change = State()
+    changetext = State()
+    price = State()
+    term = State()
+    location = State()
+    bedrooms = State()
+    changefacilities = State()
+    confirmsend = State()
